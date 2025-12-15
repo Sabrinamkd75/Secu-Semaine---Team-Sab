@@ -1553,7 +1553,7 @@
             renderConseillerView(name);
         }
 
-        function renderCalendarView() {
+        async function renderCalendarView() {
             const grid = document.getElementById('calendarGrid');
             grid.innerHTML = '';
 
@@ -1637,7 +1637,7 @@
             });
 
             // Ajouter le conseiller dans le calendrier
-            const p3Data = getP3WeekData(currentWeek);
+            const p3Data = await getP3WeekData(currentWeek);
             
             // S'assurer que p3Data existe et a le conseiller
             if (!p3Data || typeof p3Data !== 'object') {
