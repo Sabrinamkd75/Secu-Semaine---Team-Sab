@@ -394,11 +394,6 @@
             if (name) {
                 const displayName = commercialNames[name] || name;
                 document.getElementById('selectedName').textContent = displayName;
-                
-                // Mettre à jour le dropdown pour afficher le nom personnalisé
-                const dropdown = document.getElementById('commercialDropdown');
-                dropdown.textContent = displayName;
-                
                 renderPersonalView();
             }
         }
