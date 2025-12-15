@@ -1469,12 +1469,13 @@
             renderPersonalView(name);
         }
 
-        function deleteItem(name, day, index) {
+        async function deleteItem(name, day, index) {
             const isConseiller = name === 'Conseiller 1';
             if (isConseiller) {
-                const p3Data = getP3WeekData(currentWeek);
+                const p3Data = await getP3WeekData(currentWeek);
                 p3Data[name].days[day].splice(index, 1);
-                saveP3Data();
+                p3DataCurrent = p3Data;
+                await saveP3Data();
             } else {
                 data[name].days[day].splice(index, 1);
                 saveData();
@@ -1482,8 +1483,8 @@
             renderPersonalView(name);
         }
 
-        function renderConseillerView(name) {
-            const p3Data = getP3WeekData(currentWeek);
+        async function renderConseillerView(name) {
+            const p3Data = await getP3WeekData(currentWeek);
             const conseiller = p3Data[name];
             const container = document.getElementById('daysContainerConseiller');
             
@@ -1685,9 +1686,7 @@
                 const dayCancelledCount = dayP3.filter(p3 => p3.status === 'cancelled').length;
                 conseillerSigned += daySignedCount;
                 conseillerCancelled += dayCancelledCount;
-                totalP2 += dayP3.length;
-                signedP2 += daySignedCount;
-                cancelledP2 += dayCancelledCount;
+                conseillerTotal += dayP3.length;
 
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
@@ -1923,7 +1922,8 @@
         (async () => {
             await initCurrentWeek();
             updateDropdownOptions();
-            renderTeamView();
+            await renderTeamView();
+            await renderCalendarView();
             updateLastUpdate();
             
             // S'abonner aux changements Supabase
@@ -1932,8 +1932,17 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'p2_data' }, async (payload) => {
                     const allWeeks = await loadAllWeeks();
                     data = allWeeks[currentWeek] || initWeekData();
-                    renderTeamView();
-                    renderCalendarView();
+                    await renderTeamView();
+                    await renderCalendarView();
+                })
+                .subscribe();
+                
+            supabase
+                .channel('p3_changes')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'p3_data' }, async (payload) => {
+                    p3DataCurrent = await getP3WeekData(currentWeek);
+                    await renderCalendarView();
+                    await renderTeamView();
                 })
                 .subscribe();
         })();
