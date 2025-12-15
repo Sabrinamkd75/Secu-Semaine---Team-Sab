@@ -926,12 +926,21 @@
         }
 
         // Charger toutes les semaines P3 stockées
-        function loadAllP3Weeks() {
-            const stored = localStorage.getItem('p3_all_weeks');
-            if (stored) {
-                return JSON.parse(stored);
+        async function loadAllP3Weeks() {
+            try {
+                const { data, error } = await supabase.from('p3_data').select('*');
+                const result = {};
+                if (data) {
+                    data.forEach(item => {
+                        result[item.week_id] = item.data;
+                    });
+                }
+                return result;
+            } catch (err) {
+                console.log('Chargement P3 depuis localStorage');
+                const stored = localStorage.getItem('p3_all_weeks');
+                return stored ? JSON.parse(stored) : {};
             }
-            return {};
         }
 
         // Sauvegarder toutes les semaines
@@ -963,17 +972,39 @@
         }
 
         // Sauvegarder toutes les semaines P3
-        function saveAllP3Weeks(allWeeks) {
+        async function saveAllP3Weeks(allWeeks) {
+            try {
+                for (let weekId in allWeeks) {
+                    const { data: existing } = await supabase
+                        .from('p3_data')
+                        .select('id')
+                        .eq('week_id', weekId)
+                        .single();
+
+                    if (existing) {
+                        await supabase
+                            .from('p3_data')
+                            .update({ data: allWeeks[weekId] })
+                            .eq('week_id', weekId);
+                    } else {
+                        await supabase
+                            .from('p3_data')
+                            .insert([{ week_id: weekId, data: allWeeks[weekId] }]);
+                    }
+                }
+            } catch (err) {
+                console.log('Erreur Supabase P3');
+            }
             localStorage.setItem('p3_all_weeks', JSON.stringify(allWeeks));
             updateLastUpdate();
         }
 
         // Obtenir les données P3 de la semaine
-        function getP3WeekData(weekId) {
-            const allWeeks = loadAllP3Weeks();
+        async function getP3WeekData(weekId) {
+            const allWeeks = await loadAllP3Weeks();
             if (!allWeeks[weekId]) {
                 allWeeks[weekId] = initP3WeekData();
-                saveAllP3Weeks(allWeeks);
+                await saveAllP3Weeks(allWeeks);
             }
             // Vérifier que le conseiller existe
             if (!allWeeks[weekId]['Conseiller 1']) {
@@ -983,7 +1014,7 @@
                 DAYS.forEach(day => {
                     allWeeks[weekId]['Conseiller 1'].days[day] = [];
                 });
-                saveAllP3Weeks(allWeeks);
+                await saveAllP3Weeks(allWeeks);
             }
             // Mettre à jour la variable globale
             if (weekId === currentWeek) {
@@ -996,11 +1027,11 @@
         let p3DataCurrent = {};
 
         function saveP3Data() {
-            const allWeeks = loadAllP3Weeks();
-            allWeeks[currentWeek] = p3DataCurrent;
-            saveAllP3Weeks(allWeeks);
-            // Sauvegarder aussi sur Supabase
-            saveDataToSupabase('p3', currentWeek, p3DataCurrent);
+            (async () => {
+                const allWeeks = await loadAllP3Weeks();
+                allWeeks[currentWeek] = p3DataCurrent;
+                await saveAllP3Weeks(allWeeks);
+            })();
         }
 
         // Obtenir les données de la semaine actuelle
@@ -1022,7 +1053,7 @@
                 await saveAllWeeks(allWeeks);
             }
             data = allWeeks[currentWeek] || initWeekData();
-            p3DataCurrent = getP3WeekData(currentWeek);
+            p3DataCurrent = await getP3WeekData(currentWeek);
             updateWeekSelector();
         }
 
