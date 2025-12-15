@@ -980,8 +980,6 @@
             const allWeeks = loadAllP3Weeks();
             allWeeks[currentWeek] = p3DataCurrent;
             saveAllP3Weeks(allWeeks);
-            // Sauvegarder aussi sur Supabase
-            saveDataToSupabase('p3', currentWeek, p3DataCurrent);
         }
 
         // Obtenir les données de la semaine actuelle
@@ -1630,9 +1628,6 @@
                 const dayCancelledCount = dayP3.filter(p3 => p3.status === 'cancelled').length;
                 conseillerSigned += daySignedCount;
                 conseillerCancelled += dayCancelledCount;
-                totalP2 += dayP3.length;
-                signedP2 += daySignedCount;
-                cancelledP2 += dayCancelledCount;
 
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
