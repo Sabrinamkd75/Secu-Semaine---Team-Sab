@@ -908,103 +908,53 @@
         }
 
         // Charger toutes les semaines stockées
-        async function loadAllWeeks() {
-            try {
-                const { data, error } = await supabase.from('p2_data').select('*');
-                const result = {};
-                if (data) {
-                    data.forEach(item => {
-                        result[item.week_id] = item.data;
-                    });
-                }
-                return result;
-            } catch (err) {
-                console.log('Chargement depuis localStorage');
-                const stored = localStorage.getItem('p2_all_weeks');
-                return stored ? JSON.parse(stored) : {};
+        function loadAllWeeks() {
+            const stored = localStorage.getItem('p2_all_weeks');
+            if (stored) {
+                return JSON.parse(stored);
             }
+            return {};
         }
 
         // Charger toutes les semaines P3 stockées
-        async function loadAllP3Weeks() {
-            try {
-                const { data, error } = await supabase.from('p3_data').select('*');
-                const result = {};
-                if (data) {
-                    data.forEach(item => {
-                        result[item.week_id] = item.data;
-                    });
-                }
-                return result;
-            } catch (err) {
-                console.log('Chargement P3 depuis localStorage');
-                const stored = localStorage.getItem('p3_all_weeks');
-                return stored ? JSON.parse(stored) : {};
+        function loadAllP3Weeks() {
+            const stored = localStorage.getItem('p3_all_weeks');
+            if (stored) {
+                return JSON.parse(stored);
             }
+            return {};
         }
 
         // Sauvegarder toutes les semaines
-        async function saveAllWeeks(allWeeks) {
-            try {
-                for (let weekId in allWeeks) {
-                    const { data: existing } = await supabase
-                        .from('p2_data')
-                        .select('id')
-                        .eq('week_id', weekId)
-                        .single();
-
-                    if (existing) {
-                        await supabase
-                            .from('p2_data')
-                            .update({ data: allWeeks[weekId] })
-                            .eq('week_id', weekId);
-                    } else {
-                        await supabase
-                            .from('p2_data')
-                            .insert([{ week_id: weekId, data: allWeeks[weekId] }]);
-                    }
-                }
-            } catch (err) {
-                console.log('Erreur Supabase, données en attente');
-            }
+        function saveAllWeeks(allWeeks) {
             localStorage.setItem('p2_all_weeks', JSON.stringify(allWeeks));
             updateLastUpdate();
+            // Sauvegarder sur Supabase (asynchrone, pas d'attente)
+            try {
+                supabase.from('p2_data').upsert([{ week_id: currentWeek, data: allWeeks[currentWeek] }]);
+            } catch (err) {
+                console.log('Supabase P2 sync');
+            }
         }
 
         // Sauvegarder toutes les semaines P3
-        async function saveAllP3Weeks(allWeeks) {
-            try {
-                for (let weekId in allWeeks) {
-                    const { data: existing } = await supabase
-                        .from('p3_data')
-                        .select('id')
-                        .eq('week_id', weekId)
-                        .single();
-
-                    if (existing) {
-                        await supabase
-                            .from('p3_data')
-                            .update({ data: allWeeks[weekId] })
-                            .eq('week_id', weekId);
-                    } else {
-                        await supabase
-                            .from('p3_data')
-                            .insert([{ week_id: weekId, data: allWeeks[weekId] }]);
-                    }
-                }
-            } catch (err) {
-                console.log('Erreur Supabase P3');
-            }
+        function saveAllP3Weeks(allWeeks) {
             localStorage.setItem('p3_all_weeks', JSON.stringify(allWeeks));
             updateLastUpdate();
+            // Sauvegarder sur Supabase (asynchrone, pas d'attente)
+            try {
+                supabase.from('p3_data').upsert([{ week_id: currentWeek, data: allWeeks[currentWeek] }]);
+            } catch (err) {
+                console.log('Supabase P3 sync');
+            }
         }
 
         // Obtenir les données P3 de la semaine
-        async function getP3WeekData(weekId) {
-            const allWeeks = await loadAllP3Weeks();
+        function getP3WeekData(weekId) {
+            const allWeeks = loadAllP3Weeks();
             if (!allWeeks[weekId]) {
                 allWeeks[weekId] = initP3WeekData();
-                await saveAllP3Weeks(allWeeks);
+                saveAllP3Weeks(allWeeks);
             }
             // Vérifier que le conseiller existe
             if (!allWeeks[weekId]['Conseiller 1']) {
@@ -1014,7 +964,7 @@
                 DAYS.forEach(day => {
                     allWeeks[weekId]['Conseiller 1'].days[day] = [];
                 });
-                await saveAllP3Weeks(allWeeks);
+                saveAllP3Weeks(allWeeks);
             }
             // Mettre à jour la variable globale
             if (weekId === currentWeek) {
@@ -1027,11 +977,11 @@
         let p3DataCurrent = {};
 
         function saveP3Data() {
-            (async () => {
-                const allWeeks = await loadAllP3Weeks();
-                allWeeks[currentWeek] = p3DataCurrent;
-                await saveAllP3Weeks(allWeeks);
-            })();
+            const allWeeks = loadAllP3Weeks();
+            allWeeks[currentWeek] = p3DataCurrent;
+            saveAllP3Weeks(allWeeks);
+            // Sauvegarder aussi sur Supabase
+            saveDataToSupabase('p3', currentWeek, p3DataCurrent);
         }
 
         // Obtenir les données de la semaine actuelle
@@ -1045,15 +995,10 @@
         }
 
         // Initialiser currentWeek
-        async function initCurrentWeek() {
+        function initCurrentWeek() {
             currentWeek = getCurrentWeek();
-            const allWeeks = await loadAllWeeks();
-            if (!allWeeks[currentWeek]) {
-                allWeeks[currentWeek] = initWeekData();
-                await saveAllWeeks(allWeeks);
-            }
-            data = allWeeks[currentWeek] || initWeekData();
-            p3DataCurrent = await getP3WeekData(currentWeek);
+            getWeekData(currentWeek);
+            p3DataCurrent = getP3WeekData(currentWeek);
             updateWeekSelector();
         }
 
@@ -1469,13 +1414,12 @@
             renderPersonalView(name);
         }
 
-        async function deleteItem(name, day, index) {
+        function deleteItem(name, day, index) {
             const isConseiller = name === 'Conseiller 1';
             if (isConseiller) {
-                const p3Data = await getP3WeekData(currentWeek);
+                const p3Data = getP3WeekData(currentWeek);
                 p3Data[name].days[day].splice(index, 1);
-                p3DataCurrent = p3Data;
-                await saveP3Data();
+                saveP3Data();
             } else {
                 data[name].days[day].splice(index, 1);
                 saveData();
@@ -1483,8 +1427,8 @@
             renderPersonalView(name);
         }
 
-        async function renderConseillerView(name) {
-            const p3Data = await getP3WeekData(currentWeek);
+        function renderConseillerView(name) {
+            const p3Data = getP3WeekData(currentWeek);
             const conseiller = p3Data[name];
             const container = document.getElementById('daysContainerConseiller');
             
@@ -1554,7 +1498,7 @@
             renderConseillerView(name);
         }
 
-        async function renderCalendarView() {
+        function renderCalendarView() {
             const grid = document.getElementById('calendarGrid');
             grid.innerHTML = '';
 
@@ -1638,7 +1582,7 @@
             });
 
             // Ajouter le conseiller dans le calendrier
-            const p3Data = await getP3WeekData(currentWeek);
+            const p3Data = getP3WeekData(currentWeek);
             
             // S'assurer que p3Data existe et a le conseiller
             if (!p3Data || typeof p3Data !== 'object') {
@@ -1686,7 +1630,9 @@
                 const dayCancelledCount = dayP3.filter(p3 => p3.status === 'cancelled').length;
                 conseillerSigned += daySignedCount;
                 conseillerCancelled += dayCancelledCount;
-                conseillerTotal += dayP3.length;
+                totalP2 += dayP3.length;
+                signedP2 += daySignedCount;
+                cancelledP2 += dayCancelledCount;
 
                 const dayCell = document.createElement('div');
                 dayCell.className = 'day-cell';
@@ -1919,33 +1865,10 @@
         }
 
         // Initialisation
-        (async () => {
-            await initCurrentWeek();
-            updateDropdownOptions();
-            await renderTeamView();
-            await renderCalendarView();
-            updateLastUpdate();
-            
-            // S'abonner aux changements Supabase
-            supabase
-                .channel('p2_changes')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'p2_data' }, async (payload) => {
-                    const allWeeks = await loadAllWeeks();
-                    data = allWeeks[currentWeek] || initWeekData();
-                    await renderTeamView();
-                    await renderCalendarView();
-                })
-                .subscribe();
-                
-            supabase
-                .channel('p3_changes')
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'p3_data' }, async (payload) => {
-                    p3DataCurrent = await getP3WeekData(currentWeek);
-                    await renderCalendarView();
-                    await renderTeamView();
-                })
-                .subscribe();
-        })();
+        initCurrentWeek();
+        updateDropdownOptions();
+        renderTeamView();
+        updateLastUpdate();
 
         // Fonctions pour semaine personnalisée
         function openCustomWeekModal() {
