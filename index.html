@@ -394,6 +394,11 @@
             if (name) {
                 const displayName = commercialNames[name] || name;
                 document.getElementById('selectedName').textContent = displayName;
+                
+                // Mettre à jour le dropdown pour afficher le nom personnalisé
+                const dropdown = document.getElementById('commercialDropdown');
+                dropdown.textContent = displayName;
+                
                 renderPersonalView();
             }
         }
@@ -422,17 +427,26 @@
             const dropdown = document.getElementById('commercialDropdown');
             if (!dropdown) return;
             
-            const options = dropdown.querySelectorAll('option');
-            options.forEach(option => {
-                if (option.value && option.value !== '') {
-                    const displayName = commercialNames[option.value] || option.value;
-                    if (option.value === 'Conseiller 1') {
-                        option.textContent = displayName;
-                    } else {
+            // Charger les noms depuis Supabase et mettre à jour chaque option
+            (async () => {
+                const { data: namesData } = await supabase
+                    .from('commercial_names')
+                    .select('*');
+                
+                if (namesData) {
+                    namesData.forEach(item => {
+                        commercialNames[item.key] = item.name;
+                    });
+                }
+                
+                const options = dropdown.querySelectorAll('option');
+                options.forEach(option => {
+                    if (option.value && option.value !== '') {
+                        const displayName = commercialNames[option.value] || option.value;
                         option.textContent = displayName;
                     }
-                }
-            });
+                });
+            })();
         }
 
         function renderPersonalView() {
