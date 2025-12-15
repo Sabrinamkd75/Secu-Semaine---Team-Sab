@@ -86,7 +86,7 @@
         <div id="personal" class="content-section active">
             <div class="commercial-selector">
                 <label class="selector-label">Sélectionne ton nom :</label>
-                <select onchange="selectCommercial(this.value)">
+                <select onchange="selectCommercial(this.value)" id="commercialDropdown">
                     <option value="">-- Choisir --</option>
                     <option value="Commercial 1">Commercial 1</option>
                     <option value="Commercial 2">Commercial 2</option>
@@ -414,7 +414,25 @@
                 renderTeamView();
                 renderCalendarView();
                 renderPersonalView();
+                updateDropdownNames();
             }
+        }
+
+        function updateDropdownNames() {
+            const dropdown = document.getElementById('commercialDropdown');
+            if (!dropdown) return;
+            
+            const options = dropdown.querySelectorAll('option');
+            options.forEach(option => {
+                if (option.value && option.value !== '') {
+                    const displayName = commercialNames[option.value] || option.value;
+                    if (option.value === 'Conseiller 1') {
+                        option.textContent = displayName;
+                    } else {
+                        option.textContent = displayName;
+                    }
+                }
+            });
         }
 
         function renderPersonalView() {
@@ -661,6 +679,11 @@
         }
 
         loadData();
+        
+        // Mettre à jour le dropdown avec les noms après un délai
+        setTimeout(() => {
+            updateDropdownNames();
+        }, 500);
     </script>
 </body>
 </html>
